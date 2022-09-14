@@ -73,7 +73,7 @@ struct driver {
 };
 
 struct backend {
-	char *name;
+	const char *name;
 	int (*init)(struct driver *drv);
 	void (*close)(struct driver *drv);
 	int (*bo_create)(struct bo *bo, uint32_t width, uint32_t height, uint32_t format,
@@ -94,6 +94,8 @@ struct backend {
 	int (*bo_unmap)(struct bo *bo, struct vma *vma);
 	int (*bo_invalidate)(struct bo *bo, struct mapping *mapping);
 	int (*bo_flush)(struct bo *bo, struct mapping *mapping);
+	int (*bo_get_plane_fd)(struct bo *bo, size_t plane);
+	uint32_t (*bo_get_map_stride)(struct bo *bo);
 	void (*resolve_format_and_use_flags)(struct driver *drv, uint32_t format,
 					     uint64_t use_flags, uint32_t *out_format,
 					     uint64_t *out_use_flags);

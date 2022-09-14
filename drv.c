@@ -24,6 +24,15 @@
 #include "drv_priv.h"
 #include "util.h"
 
+#ifdef DRV_EXTERNAL
+extern struct backend *init_external_backend();
+
+static const struct backend *drv_get_backend(int fd)
+{
+	return init_external_backend();
+}
+#else
+
 #ifdef DRV_AMDGPU
 extern const struct backend backend_amdgpu;
 #endif
@@ -100,6 +109,7 @@ static const struct backend *drv_get_backend(int fd)
 	drmFreeVersion(drm_version);
 	return NULL;
 }
+#endif
 
 struct driver *drv_create(int fd)
 {
@@ -653,6 +663,11 @@ int drv_bo_get_plane_fd(struct bo *bo, size_t plane)
 	if (bo->is_test_buffer)
 		return -EINVAL;
 
+	if (bo->drv->backend->bo_get_plane_fd) {
+		fd = bo->drv->backend->bo_get_plane_fd(bo, plane);
+		return fd;
+	}
+
 	ret = drmPrimeHandleToFD(bo->drv->fd, bo->handles[plane].u32, DRM_CLOEXEC | DRM_RDWR, &fd);
 
 	// Older DRM implementations blocked DRM_RDWR, but gave a read/write mapping anyways
@@ -706,6 +721,23 @@ uint64_t drv_bo_get_use_flags(struct bo *bo)
 size_t drv_bo_get_total_size(struct bo *bo)
 {
 	return bo->meta.total_size;
+}
+
+uint32_t drv_bo_get_pixel_stride(struct bo *bo)
+{
+	struct driver *drv = bo->drv;
+	uint32_t bytes_per_pixel = 0;
+	uint32_t map_stride = 0;
+
+	bytes_per_pixel = drv_bytes_per_pixel_from_format(bo->meta.format, 0);
+
+	if ((bo->meta.use_flags & BO_USE_SW_MASK) && drv->backend->bo_get_map_stride)
+		map_stride = drv->backend->bo_get_map_stride(bo);
+
+	if (!map_stride)
+		map_stride = bo->meta.strides[0];
+
+	return DIV_ROUND_UP(map_stride, bytes_per_pixel);
 }
 
 /*

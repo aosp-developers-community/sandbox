@@ -72,6 +72,7 @@ cros_gralloc_driver *cros_gralloc_driver::get_instance()
 	return &s_instance;
 }
 
+#ifndef DRV_EXTERNAL
 static struct driver *init_try_node(int idx, char const *str)
 {
 	int fd;
@@ -129,11 +130,21 @@ static struct driver *init_try_nodes()
 	return nullptr;
 }
 
+#else
+
+static struct driver *init_try_nodes()
+{
+	return drv_create(-1);
+}
+
+#endif
+
 static void drv_destroy_and_close(struct driver *drv)
 {
 	int fd = drv_get_fd(drv);
 	drv_destroy(drv);
-	close(fd);
+	if (fd != -1)
+		close(fd);
 }
 
 cros_gralloc_driver::cros_gralloc_driver() : drv_(init_try_nodes(), drv_destroy_and_close)
@@ -227,7 +238,6 @@ int32_t cros_gralloc_driver::allocate(const struct cros_gralloc_buffer_descripto
 	size_t num_fds;
 	size_t num_ints;
 	uint32_t resolved_format;
-	uint32_t bytes_per_pixel;
 	uint64_t resolved_use_flags;
 	struct bo *bo;
 	struct cros_gralloc_handle *hnd;
@@ -299,8 +309,7 @@ int32_t cros_gralloc_driver::allocate(const struct cros_gralloc_buffer_descripto
 	hnd->tiling = drv_bo_get_tiling(bo);
 	hnd->format_modifier = drv_bo_get_format_modifier(bo);
 	hnd->use_flags = drv_bo_get_use_flags(bo);
-	bytes_per_pixel = drv_bytes_per_pixel_from_format(hnd->format, 0);
-	hnd->pixel_stride = DIV_ROUND_UP(hnd->strides[0], bytes_per_pixel);
+	hnd->pixel_stride = drv_bo_get_pixel_stride(bo);
 	hnd->magic = cros_gralloc_magic;
 	hnd->droid_format = descriptor->droid_format;
 	hnd->usage = descriptor->droid_usage;
